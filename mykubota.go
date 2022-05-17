@@ -21,7 +21,7 @@ type Session struct {
 	token  *oauth2.Token
 }
 
-func New(username, password string) (*Session, error) {
+func New(ctx context.Context, username, password string) (*Session, error) {
 	cfg := oauth2.Config{
 		ClientID:     AppClientID,
 		ClientSecret: AppClientSecret,
@@ -31,12 +31,12 @@ func New(username, password string) (*Session, error) {
 		},
 		Scopes: []string{"read"},
 	}
-	token, err := cfg.PasswordCredentialsToken(context.TODO(), username, password)
+	token, err := cfg.PasswordCredentialsToken(ctx, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed oauth2: %v", err)
 	}
 	s := Session{
-		client: cfg.Client(context.TODO(), token),
+		client: cfg.Client(ctx, token),
 		token:  token,
 	}
 	return &s, nil
@@ -49,13 +49,13 @@ type User struct {
 	MfaEnabled    bool   `json:"mfa_enabled"`
 }
 
-func (s *Session) User() (*User, error) {
+func (s *Session) User(ctx context.Context) (*User, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/oauth/user", AppEndpoint), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := s.client.Do(req)
+	resp, err := s.client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +143,13 @@ type Equipment struct {
 	Telematics EquipmentTelematics `json:"telematics"`
 }
 
-func (s *Session) Equipment() ([]Equipment, error) {
+func (s *Session) ListEquipment(ctx context.Context) ([]Equipment, error) {
+	// TODO does the app support pagination? not that I can tell
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/equipment", AppEndpoint), nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.client.Do(req)
+	resp, err := s.client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -162,4 +163,54 @@ func (s *Session) Equipment() ([]Equipment, error) {
 		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 	return res, nil
+}
+
+type Settings struct {
+	MeasurementUnit string `json:"measurementUnit"`
+	// subscribedToAlerts, subscribedToMessages, subscribedToNotifications
+}
+
+func (s *Session) Settings(ctx context.Context) (*Settings, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/settings", AppEndpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response code: %d (want %d)", resp.StatusCode, http.StatusOK)
+	}
+
+	type settingsResponse struct {
+		Settings Settings `json:"settings"`
+	}
+	res := settingsResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("unable to decode response: %w", err)
+	}
+	return &res.Settings, nil
+}
+
+func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/equipment/%s", AppEndpoint, id), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response code: %d (want %d)", resp.StatusCode, http.StatusOK)
+	}
+
+	res := Equipment{}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("unable to decode response: %w", err)
+	}
+	return &res, nil
 }
