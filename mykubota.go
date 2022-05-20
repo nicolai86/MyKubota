@@ -20,9 +20,10 @@ var AppClientSecret = "TCDx0qg5kFQhIdCxW0t1iFlESodtWfaR49vy4JdbYjc"
 type Session struct {
 	client *http.Client
 	token  *oauth2.Token
+	locale string
 }
 
-func New(ctx context.Context, username, password string) (*Session, error) {
+func New(ctx context.Context, username, password, locale string) (*Session, error) {
 	cfg := oauth2.Config{
 		ClientID:     AppClientID,
 		ClientSecret: AppClientSecret,
@@ -39,6 +40,7 @@ func New(ctx context.Context, username, password string) (*Session, error) {
 	s := Session{
 		client: cfg.Client(ctx, token),
 		token:  token,
+		locale: locale,
 	}
 	return &s, nil
 }
@@ -140,6 +142,10 @@ type Equipment struct {
 }
 
 func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
+	req.Header.Set("version", "2021_R06")
+	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
+	req.Header.Set("Accept-Language", s.locale)
+
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return err
@@ -248,7 +254,6 @@ func (s *Session) Categories(ctx context.Context) ([]Category, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("version", "2021_R06")
 	type modelsResponse struct {
 		Categories []Category `json:"categories"`
 	}
@@ -278,7 +283,6 @@ func (s *Session) Models(ctx context.Context) ([]Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("version", "2021_R06")
 	type modelsResponse struct {
 		Models []Model `json:"models"`
 	}
@@ -292,7 +296,6 @@ func (s *Session) Models(ctx context.Context) ([]Model, error) {
 type SearchMachineRequest struct {
 	PartialModel string
 	Serial       string
-	Locale       string
 }
 
 func (s *Session) SearchMachine(ctx context.Context, request SearchMachineRequest) (*Model, error) {
@@ -300,9 +303,6 @@ func (s *Session) SearchMachine(ctx context.Context, request SearchMachineReques
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("version", "2021_R06")
-	req.Header.Set("Accept-Language", request.Locale)
-
 	values := req.URL.Query()
 	values.Set("partialModel", request.PartialModel)
 	values.Set("serial", request.Serial)

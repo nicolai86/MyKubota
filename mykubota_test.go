@@ -30,7 +30,7 @@ func hasConfiguration() bool {
 
 func TestMain(m *testing.M) {
 	if hasConfiguration() {
-		session, err := New(context.Background(), username, password)
+		session, err := New(context.Background(), username, password, "en-CA")
 		if err != nil {
 			log.Fatalf("expected login to succeed, but didn't: %v", err)
 		}
@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
-	session, err := New(context.Background(), username, password)
+	session, err := New(context.Background(), username, password, "en-CA")
 	if err != nil {
 		t.Fatalf("expected login to succeed, but didn't: %v", err)
 	}
@@ -114,10 +114,17 @@ func TestSession_SearchMachine(t *testing.T) {
 	model, err := shared.SearchMachine(context.Background(), SearchMachineRequest{
 		PartialModel: "kx0",
 		Serial:       "39381",
-		Locale:       "en-CA",
 	})
 	if err != nil {
 		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
 	}
 	_ = model
+}
+
+func TestSession_DeleteEquipment(t *testing.T) {
+	t.Skip("TODO")
+}
+
+func TestSession_AddEquipment(t *testing.T) {
+	t.Skip("TODO")
 }
