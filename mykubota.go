@@ -2,6 +2,7 @@
 package mykubota
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -56,7 +57,7 @@ func (s *Session) User(ctx context.Context) (*User, error) {
 	}
 
 	res := User{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res);err != nil {
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -133,7 +134,7 @@ type Equipment struct {
 	// "warrantyUrl"
 	// "guideUrl"
 	ManualEntries []ManualEntry `json:"manualEntries"`
-	VideoEntries []VideoEntry `json:"videoEntries"`
+	VideoEntries  []VideoEntry  `json:"videoEntries"`
 
 	Telematics EquipmentTelematics `json:"telematics"`
 }
@@ -199,10 +200,46 @@ func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, erro
 	return &res, nil
 }
 
+func (s *Session) DeleteEquipment(ctx context.Context, id string) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/api/user/equipment/%s", AppEndpoint, id), nil)
+	if err != nil {
+		return err
+	}
+	return s.do(req.WithContext(ctx), []int{http.StatusOK}, struct{}{})
+}
+
+type AddEquipmentRequest struct {
+	Model       *Model
+	PinOrSerial string
+}
+
+func (s *Session) AddEquipment(ctx context.Context, request AddEquipmentRequest) error {
+	type addMachineRequest struct {
+		Model       string `json:"model"`
+		PinOrSerial string `json:"pinOrSerial"`
+		Identifier  string `json:"identifierType"`
+		EngineHours int    `json:"engineHours"`
+		Type        string `json:"type"`
+	}
+	bs := bytes.Buffer{}
+	json.NewEncoder(&bs).Encode(addMachineRequest{
+		Model:       request.Model.Model,
+		PinOrSerial: request.PinOrSerial,
+		Identifier:  "Serial",
+		Type:        "machine",
+	})
+
+	req, err := http.NewRequest("POST", "/api/user/equipment/addFromScan", bytes.NewReader(bs.Bytes()))
+	if err != nil {
+		return err
+	}
+	return s.do(req.WithContext(ctx), []int{http.StatusOK}, struct{}{})
+}
+
 type Category struct {
-	ID int `json:"id"`
-	Name string `json:"name"`
-	ParentID int `json:"parentId"`
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	ParentID int    `json:"parentId"`
 	// heroUrl, fullUrl, iconUrl
 }
 
@@ -223,15 +260,15 @@ func (s *Session) Categories(ctx context.Context) ([]Category, error) {
 }
 
 type Model struct {
-	Category string `json:"category"`
+	Category    string `json:"category"`
 	SubCategory string `json:"subcategory"`
 	// categoryFullUrl, categoryHeroUrl, categoryIconUrl, guideUrl string
-	HasFaultCodes bool `json:"hasFaultCodes"`
-	HasMaintenanceSchedules bool `json:"hasMaintenanceSchedules"`
-	ManualEntries []ManualEntry `json:"manualEntries"`
-	Model string `json:"model"`
+	HasFaultCodes           bool          `json:"hasFaultCodes"`
+	HasMaintenanceSchedules bool          `json:"hasMaintenanceSchedules"`
+	ManualEntries           []ManualEntry `json:"manualEntries"`
+	Model                   string        `json:"model"`
 	// modelFullUrl, modelHeroUrl, modelIconUrl string
-	// subcategoryFullUrl, subcategoryHeroUrl, subcategoryIconUrl string 
+	// subcategoryFullUrl, subcategoryHeroUrl, subcategoryIconUrl string
 	VideoEntries []VideoEntry `json:"videoEntries"`
 	// warrantyUrl string
 }
@@ -250,4 +287,36 @@ func (s *Session) Models(ctx context.Context) ([]Model, error) {
 		return nil, err
 	}
 	return res.Models, nil
+}
+
+type SearchMachineRequest struct {
+	PartialModel string
+	Serial       string
+	Locale       string
+}
+
+func (s *Session) SearchMachine(ctx context.Context, request SearchMachineRequest) (*Model, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("version", "2021_R06")
+	req.Header.Set("Accept-Language", request.Locale)
+
+	values := req.URL.Query()
+	values.Set("partialModel", request.PartialModel)
+	values.Set("serial", request.Serial)
+	req.URL.RawQuery = values.Encode()
+
+	type modelsResponse struct {
+		Models []Model `json:"models"`
+	}
+	var res = modelsResponse{}
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+		return nil, err
+	}
+	if len(res.Models) < 1 {
+		return nil, fmt.Errorf("didn't find a matching model")
+	}
+	return &res.Models[0], nil
 }

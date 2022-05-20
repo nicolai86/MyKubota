@@ -12,7 +12,7 @@ import (
 var (
 	username = os.Getenv("MYKUBOTA_USERNAME")
 	password = os.Getenv("MYKUBOTA_PASSWORD")
-	shared *Session
+	shared   *Session
 )
 
 func skipIntegrationWithoutConfiguration(t *testing.T) {
@@ -105,6 +105,19 @@ func TestSession_Models(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
 	}
-	_ = models 
-	log.Println(models)
+	_ = models
+}
+
+func TestSession_SearchMachine(t *testing.T) {
+	skipIntegrationWithoutConfiguration(t)
+
+	model, err := shared.SearchMachine(context.Background(), SearchMachineRequest{
+		PartialModel: "kx0",
+		Serial:       "39381",
+		Locale:       "en-CA",
+	})
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+	_ = model
 }
