@@ -55,20 +55,10 @@ func (s *Session) User(ctx context.Context) (*User, error) {
 		return nil, err
 	}
 
-	resp, err := s.client.Do(req.WithContext(ctx))
-	if err != nil {
+	res := User{}
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res);err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response code: %d (want %d)", resp.StatusCode, http.StatusOK)
-	}
-	res := User{}
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, fmt.Errorf("unable to decode response: %w", err)
-	}
-
 	return &res, nil
 }
 
@@ -143,24 +133,31 @@ type Equipment struct {
 	Telematics EquipmentTelematics `json:"telematics"`
 }
 
+func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	isSuccessful := false
+	for _, code := range acceptableHTTPCodes {
+		isSuccessful = isSuccessful || code == resp.StatusCode
+	}
+	if !isSuccessful {
+		return fmt.Errorf("response code %d didn't match any expected http status codes %v", resp.StatusCode, acceptableHTTPCodes)
+	}
+	return json.NewDecoder(resp.Body).Decode(res)
+}
+
 func (s *Session) ListEquipment(ctx context.Context) ([]Equipment, error) {
 	// TODO does the app support pagination? not that I can tell
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/equipment", AppEndpoint), nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.client.Do(req.WithContext(ctx))
-	if err != nil {
+	var res = []Equipment{}
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
 		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response code: %d (want %d)", resp.StatusCode, http.StatusOK)
-	}
-
-	res := []Equipment{}
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 	return res, nil
 }
@@ -175,21 +172,12 @@ func (s *Session) Settings(ctx context.Context) (*Settings, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.client.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response code: %d (want %d)", resp.StatusCode, http.StatusOK)
-	}
-
 	type settingsResponse struct {
 		Settings Settings `json:"settings"`
 	}
 	res := settingsResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, fmt.Errorf("unable to decode response: %w", err)
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+		return nil, err
 	}
 	return &res.Settings, nil
 }
@@ -199,18 +187,9 @@ func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, erro
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.client.Do(req.WithContext(ctx))
-	if err != nil {
+	var res = Equipment{}
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
 		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response code: %d (want %d)", resp.StatusCode, http.StatusOK)
-	}
-
-	res := Equipment{}
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 	return &res, nil
 }
