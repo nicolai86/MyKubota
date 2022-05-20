@@ -104,6 +104,11 @@ type ManualEntry struct {
 	URL  string `json:"url"`
 }
 
+type VideoEntry struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 type Equipment struct {
 	ID                      string  `json:"id"`
 	Model                   string  `json:"model"`
@@ -128,7 +133,7 @@ type Equipment struct {
 	// "warrantyUrl"
 	// "guideUrl"
 	ManualEntries []ManualEntry `json:"manualEntries"`
-	VideoEntries []interface{} `json:"videoEntries"`
+	VideoEntries []VideoEntry `json:"videoEntries"`
 
 	Telematics EquipmentTelematics `json:"telematics"`
 }
@@ -192,4 +197,57 @@ func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, erro
 		return nil, err
 	}
 	return &res, nil
+}
+
+type Category struct {
+	ID int `json:"id"`
+	Name string `json:"name"`
+	ParentID int `json:"parentId"`
+	// heroUrl, fullUrl, iconUrl
+}
+
+func (s *Session) Categories(ctx context.Context) ([]Category, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("version", "2021_R06")
+	type modelsResponse struct {
+		Categories []Category `json:"categories"`
+	}
+	var res = modelsResponse{}
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+		return nil, err
+	}
+	return res.Categories, nil
+}
+
+type Model struct {
+	Category string `json:"category"`
+	SubCategory string `json:"subcategory"`
+	// categoryFullUrl, categoryHeroUrl, categoryIconUrl, guideUrl string
+	HasFaultCodes bool `json:"hasFaultCodes"`
+	HasMaintenanceSchedules bool `json:"hasMaintenanceSchedules"`
+	ManualEntries []ManualEntry `json:"manualEntries"`
+	Model string `json:"model"`
+	// modelFullUrl, modelHeroUrl, modelIconUrl string
+	// subcategoryFullUrl, subcategoryHeroUrl, subcategoryIconUrl string 
+	VideoEntries []VideoEntry `json:"videoEntries"`
+	// warrantyUrl string
+}
+
+func (s *Session) Models(ctx context.Context) ([]Model, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("version", "2021_R06")
+	type modelsResponse struct {
+		Models []Model `json:"models"`
+	}
+	var res = modelsResponse{}
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+		return nil, err
+	}
+	return res.Models, nil
 }

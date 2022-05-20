@@ -2,6 +2,7 @@ package mykubota
 
 import (
 	"context"
+	"log"
 	"os"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 var (
 	username = os.Getenv("MYKUBOTA_USERNAME")
 	password = os.Getenv("MYKUBOTA_PASSWORD")
+	shared *Session
 )
 
 func skipIntegrationWithoutConfiguration(t *testing.T) {
@@ -20,6 +22,21 @@ func skipIntegrationWithoutConfiguration(t *testing.T) {
 	if password == "" {
 		t.Skip("missing MYKUBOTA_PASSWORD variable")
 	}
+}
+
+func hasConfiguration() bool {
+	return username != "" && password != ""
+}
+
+func TestMain(m *testing.M) {
+	if hasConfiguration() {
+		session, err := New(context.Background(), username, password)
+		if err != nil {
+			log.Fatalf("expected login to succeed, but didn't: %v", err)
+		}
+		shared = session
+	}
+	os.Exit(m.Run())
 }
 
 func TestNew(t *testing.T) {
@@ -35,12 +52,7 @@ func TestNew(t *testing.T) {
 func TestSession_User(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
-	session, err := New(context.Background(), username, password)
-	if err != nil {
-		t.Fatalf("expected login to succeed, but didn't: %v", err)
-	}
-
-	user, err := session.User(context.Background())
+	user, err := shared.User(context.Background())
 	if err != nil {
 		t.Fatalf("expected oauth user to succeed, but didn't: %v", err)
 	}
@@ -50,18 +62,13 @@ func TestSession_User(t *testing.T) {
 func TestSession_ListEquipment(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
-	session, err := New(context.Background(), username, password)
-	if err != nil {
-		t.Fatalf("expected login to succeed, but didn't: %v", err)
-	}
-
-	eqs, err := session.ListEquipment(context.Background())
+	eqs, err := shared.ListEquipment(context.Background())
 	if err != nil {
 		t.Fatalf("expected list equipment to succeed, but didn't: %v", err)
 	}
 
 	if len(eqs) > 0 {
-		eq, err := session.GetEquipment(context.Background(), eqs[0].ID)
+		eq, err := shared.GetEquipment(context.Background(), eqs[0].ID)
 		if err != nil {
 			t.Fatalf("expected get equipment to succeed, but didn't: %v", err)
 		}
@@ -74,14 +81,30 @@ func TestSession_ListEquipment(t *testing.T) {
 func TestSession_Settings(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
-	session, err := New(context.Background(), username, password)
-	if err != nil {
-		t.Fatalf("expected login to succeed, but didn't: %v", err)
-	}
-
-	settings, err := session.Settings(context.Background())
+	settings, err := shared.Settings(context.Background())
 	if err != nil {
 		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
 	}
 	_ = settings
+}
+
+func TestSession_Categories(t *testing.T) {
+	skipIntegrationWithoutConfiguration(t)
+
+	categories, err := shared.Categories(context.Background())
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+	_ = categories
+}
+
+func TestSession_Models(t *testing.T) {
+	skipIntegrationWithoutConfiguration(t)
+
+	models, err := shared.Models(context.Background())
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+	_ = models 
+	log.Println(models)
 }
