@@ -105,7 +105,9 @@ func TestClient_Categories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
 	}
-	_ = categories
+	if len(categories) == 0 {
+		t.Fatalf("expected categories to be populated for en-CA")
+	}
 }
 
 func TestClient_Models(t *testing.T) {
@@ -115,7 +117,9 @@ func TestClient_Models(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
 	}
-	_ = models
+	if len(models) == 0 {
+		t.Fatalf("expected models to be populated for en-CA")
+	}
 }
 
 func TestClient_SearchMachine(t *testing.T) {
