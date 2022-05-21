@@ -30,7 +30,8 @@ func hasConfiguration() bool {
 
 func TestMain(m *testing.M) {
 	if hasConfiguration() {
-		session, err := New(context.Background(), username, password, "en-CA")
+		client := New("en-CA")
+		session, err := client.Authenticate(context.Background(), username, password)
 		if err != nil {
 			log.Fatalf("expected login to succeed, but didn't: %v", err)
 		}
@@ -42,7 +43,8 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
-	session, err := New(context.Background(), username, password, "en-CA")
+	client := New("en-CA")
+	session, err := client.Authenticate(context.Background(), username, password)
 	if err != nil {
 		t.Fatalf("expected login to succeed, but didn't: %v", err)
 	}
@@ -88,43 +90,66 @@ func TestSession_Settings(t *testing.T) {
 	_ = settings
 }
 
-func TestSession_Categories(t *testing.T) {
-	skipIntegrationWithoutConfiguration(t)
-
-	categories, err := shared.Categories(context.Background())
-	if err != nil {
-		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
-	}
-	_ = categories
-}
-
-func TestSession_Models(t *testing.T) {
-	skipIntegrationWithoutConfiguration(t)
-
-	models, err := shared.Models(context.Background())
-	if err != nil {
-		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
-	}
-	_ = models
-}
-
-func TestSession_SearchMachine(t *testing.T) {
-	skipIntegrationWithoutConfiguration(t)
-
-	model, err := shared.SearchMachine(context.Background(), SearchMachineRequest{
-		PartialModel: "kx0",
-		Serial:       "39381",
-	})
-	if err != nil {
-		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
-	}
-	_ = model
-}
-
 func TestSession_DeleteEquipment(t *testing.T) {
 	t.Skip("TODO")
 }
 
 func TestSession_AddEquipment(t *testing.T) {
 	t.Skip("TODO")
+}
+
+func TestClient_Categories(t *testing.T) {
+	t.Parallel()
+
+	categories, err := New("en-CA").ListCategories(context.Background())
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+	_ = categories
+}
+
+func TestClient_Models(t *testing.T) {
+	t.Parallel()
+
+	models, err := New("en-CA").ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+	_ = models
+}
+
+func TestClient_SearchMachine(t *testing.T) {
+	t.Parallel()
+
+	model, err := New("en-CA").SearchMachine(context.Background(), SearchMachineRequest{
+		PartialModel: "kx0",
+		Serial:       "1",
+	})
+
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+	
+	if expected := "KX057-4"; model.Model != expected {
+		t.Fatalf("expected model %q, got %q", expected, model.Model)
+	}
+}
+
+func TestClient_GetModelTree(t *testing.T) {
+	t.Parallel()
+
+	roots, err := New("en-CA").GetModelTree(context.Background())
+	if err != nil {
+		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
+	}
+
+	if len(roots) == 0 {
+		t.Fatalf("expected model tree to be populated")
+	}
+
+	for _, root := range roots {
+		if len(root.SubCategories) == 0 {
+			t.Fatalf("expected every root to have subcategories, but %s has none", root.Name)
+		}
+	}
 }

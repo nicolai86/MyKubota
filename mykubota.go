@@ -13,17 +13,56 @@ import (
 )
 
 // taken from MyKubota app on iOS
-var AppEndpoint = "https://app.mykubota.com"
-var AppClientID = "1e74fe67-9753-4f65-b6e4-dd65a8132ea2"
-var AppClientSecret = "TCDx0qg5kFQhIdCxW0t1iFlESodtWfaR49vy4JdbYjc"
+var (
+	AppEndpoint = "https://app.mykubota.com"
+	AppClientID = "1e74fe67-9753-4f65-b6e4-dd65a8132ea2"
+	AppClientSecret = "TCDx0qg5kFQhIdCxW0t1iFlESodtWfaR49vy4JdbYjc"
+)
 
+// Client allows location specific access to public content from the MyKubota app
+type Client struct {
+	client *http.Client
+	locale string 
+}
+
+// New creates a new MyKubota client for public content in the region specified by the locale
+// locale must be of format `{ISO 639-1}-{ISO 3166}`, ie en-US or en-CA
+func New(locale string) (*Client) {
+	return &Client{
+		client: &http.Client{},
+		locale: locale,
+	}
+}
+
+
+func (s *Client) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
+	req.Header.Set("version", "2021_R06")
+	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
+	req.Header.Set("Accept-Language", s.locale)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	isSuccessful := false
+	for _, code := range acceptableHTTPCodes {
+		isSuccessful = isSuccessful || code == resp.StatusCode
+	}
+	if !isSuccessful {
+		return fmt.Errorf("response code %d didn't match any expected http status codes %v", resp.StatusCode, acceptableHTTPCodes)
+	}
+	return json.NewDecoder(resp.Body).Decode(res)
+}
+
+// Session allows location specific access to authenticated content
 type Session struct {
 	client *http.Client
 	token  *oauth2.Token
-	locale string
+	locale string 
 }
 
-func New(ctx context.Context, username, password, locale string) (*Session, error) {
+func (c *Client) Authenticate(ctx context.Context, username, password string) (*Session, error) {
 	cfg := oauth2.Config{
 		ClientID:     AppClientID,
 		ClientSecret: AppClientSecret,
@@ -40,7 +79,7 @@ func New(ctx context.Context, username, password, locale string) (*Session, erro
 	s := Session{
 		client: cfg.Client(ctx, token),
 		token:  token,
-		locale: locale,
+		locale: c.locale,
 	}
 	return &s, nil
 }
@@ -242,55 +281,104 @@ func (s *Session) AddEquipment(ctx context.Context, request AddEquipmentRequest)
 	return s.do(req.WithContext(ctx), []int{http.StatusOK}, struct{}{})
 }
 
-type Category struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	ParentID int    `json:"parentId"`
-	// heroUrl, fullUrl, iconUrl
+type CategoryNode struct {
+	ID       int
+	Name     string
+	ParentID *int
+
+	SubCategories []*CategoryNode
+	Models        []Model
 }
 
-func (s *Session) Categories(ctx context.Context) ([]Category, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
+func (c *Client) GetModelTree(ctx context.Context) ([]*CategoryNode, error) {
+	cs, ms, err := c.loadCategoriesAndModels(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	// kubota doesn't have nested categories today. If they had, this code would need adjustments
+	categoryModels := map[int][]Model{}
+	for _, m := range ms {
+		vs, ok := categoryModels[m.CategoryID]
+		if !ok {
+			vs = []Model{}
+		}
+		categoryModels[m.CategoryID] = append(vs, m)
+	}
+
+	roots := []*CategoryNode{}
+	categories := map[int]*CategoryNode{}
+	for _, c := range cs {
+		node := &CategoryNode{
+			ID:            c.ID,
+			Name:          c.Name,
+			SubCategories: []*CategoryNode{},
+			Models:        categoryModels[c.ID],
+			ParentID:      c.ParentID,
+		}
+		if c.ParentID == nil {
+			roots = append(roots, node)
+		}
+		categories[c.ID] = node
+	}
+	for _, node := range categories {
+		if node.ParentID == nil {
+			continue
+		}
+		parent := categories[*node.ParentID]
+		vs := parent.SubCategories
+		parent.SubCategories = append(vs, node)
+	}
+
+	return roots, nil
+}
+
+type Category struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	ParentID *int   `json:"parentId"`
+	// heroUrl, fullUrl, iconUrl
+}
+
+func (c *Client) loadCategoriesAndModels(ctx context.Context) ([]Category, []Model, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
+	if err != nil {
+		return nil, nil, err
+	}
 	type modelsResponse struct {
 		Categories []Category `json:"categories"`
+		Models     []Model    `json:"models"`
 	}
 	var res = modelsResponse{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
-		return nil, err
+	if err := c.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+		return nil, nil, err
 	}
-	return res.Categories, nil
+	return res.Categories, res.Models, nil
+}
+
+func (s *Client) ListCategories(ctx context.Context) ([]Category, error) {
+	cs, _, err := s.loadCategoriesAndModels(ctx)
+	return cs, err
 }
 
 type Model struct {
-	Category    string `json:"category"`
-	SubCategory string `json:"subcategory"`
+	CategoryID            int      `json:"categoryId"`
+	Type                  string   `json:"type"`
+	CompatibleAttachments []string `json:"compatibleAttachments"`
 	// categoryFullUrl, categoryHeroUrl, categoryIconUrl, guideUrl string
 	HasFaultCodes           bool          `json:"hasFaultCodes"`
 	HasMaintenanceSchedules bool          `json:"hasMaintenanceSchedules"`
 	ManualEntries           []ManualEntry `json:"manualEntries"`
+	VideoEntries            []VideoEntry  `json:"videoEntries"`
 	Model                   string        `json:"model"`
 	// modelFullUrl, modelHeroUrl, modelIconUrl string
 	// subcategoryFullUrl, subcategoryHeroUrl, subcategoryIconUrl string
-	VideoEntries []VideoEntry `json:"videoEntries"`
 	// warrantyUrl string
 }
 
-func (s *Session) Models(ctx context.Context) ([]Model, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
-	if err != nil {
-		return nil, err
-	}
-	type modelsResponse struct {
-		Models []Model `json:"models"`
-	}
-	var res = modelsResponse{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
-		return nil, err
-	}
-	return res.Models, nil
+func (c *Client) ListModels(ctx context.Context) ([]Model, error) {
+	_, ms, err := c.loadCategoriesAndModels(ctx)
+	return ms, err
 }
 
 type SearchMachineRequest struct {
@@ -298,7 +386,7 @@ type SearchMachineRequest struct {
 	Serial       string
 }
 
-func (s *Session) SearchMachine(ctx context.Context, request SearchMachineRequest) (*Model, error) {
+func (c *Client) SearchMachine(ctx context.Context, request SearchMachineRequest) (*Model, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
 	if err != nil {
 		return nil, err
@@ -312,7 +400,7 @@ func (s *Session) SearchMachine(ctx context.Context, request SearchMachineReques
 		Models []Model `json:"models"`
 	}
 	var res = modelsResponse{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+	if err := c.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
 		return nil, err
 	}
 	if len(res.Models) < 1 {
