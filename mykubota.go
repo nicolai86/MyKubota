@@ -62,6 +62,7 @@ type Session struct {
 	locale string 
 }
 
+// Authenticate performs a password authentication with the MyKubota oauth API
 func (c *Client) Authenticate(ctx context.Context, username, password string) (*Session, error) {
 	cfg := oauth2.Config{
 		ClientID:     AppClientID,
@@ -84,6 +85,7 @@ func (c *Client) Authenticate(ctx context.Context, username, password string) (*
 	return &s, nil
 }
 
+// User contains basic informations about your MyKubota registration
 type User struct {
 	Email         string `json:"email"`
 	PhoneNumber   string `json:"phone_number"`
@@ -91,6 +93,7 @@ type User struct {
 	MfaEnabled    bool   `json:"mfa_enabled"`
 }
 
+// User fetches the authenticated user for the current session
 func (s *Session) User(ctx context.Context) (*User, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/oauth/user", AppEndpoint), nil)
 	if err != nil {
@@ -104,6 +107,7 @@ func (s *Session) User(ctx context.Context) (*User, error) {
 	return &res, nil
 }
 
+// EquipmentLocation contains location information for telematics enabled equipment
 type EquipmentLocation struct {
 	Latitude             float64 `json:"latitude"`
 	Longitude            float64 `json:"longitude"`
@@ -111,12 +115,14 @@ type EquipmentLocation struct {
 	PositionHeadingAngle float64 `json:"positionHeadingAngle"`
 }
 
+// EquipmentRestartInhibitStatus contains restart inhibit information for telematics enabled equipment
 type EquipmentRestartInhibitStatus struct {
 	CanModify       bool   `json:"canModify"`
 	CommandStatus   string `json:"commandStatus"`
 	EquipmentStatus string `json:"equipmentStatus"`
 }
 
+// EquipmentTelematics contains basic telematics data for telematics enabled equipment
 type EquipmentTelematics struct {
 	LocationTime             time.Time                     `json:"locationTime"`
 	CumulativeOperatingHours float64                       `json:"cumulativeOperatingHours"`
@@ -200,6 +206,7 @@ func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) erro
 	return json.NewDecoder(resp.Body).Decode(res)
 }
 
+// ListEquipment retrieves all equipment registered with the MyKubota app
 func (s *Session) ListEquipment(ctx context.Context) ([]Equipment, error) {
 	// TODO does the app support pagination? not that I can tell
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/equipment", AppEndpoint), nil)
@@ -218,6 +225,7 @@ type Settings struct {
 	// subscribedToAlerts, subscribedToMessages, subscribedToNotifications
 }
 
+// Settings loads user settings made in the MyKubota app
 func (s *Session) Settings(ctx context.Context) (*Settings, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/settings", AppEndpoint), nil)
 	if err != nil {
@@ -233,6 +241,7 @@ func (s *Session) Settings(ctx context.Context) (*Settings, error) {
 	return &res.Settings, nil
 }
 
+// GetEquipment fetches a particular equipment by its ID
 func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/equipment/%s", AppEndpoint, id), nil)
 	if err != nil {
@@ -245,6 +254,7 @@ func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, erro
 	return &res, nil
 }
 
+// DeleteEquipment removes equipment associations for the current user
 func (s *Session) DeleteEquipment(ctx context.Context, id string) error {
 	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/api/user/equipment/%s", AppEndpoint, id), nil)
 	if err != nil {
@@ -258,6 +268,7 @@ type AddEquipmentRequest struct {
 	PinOrSerial string
 }
 
+// AddEquipment adds equipment associations for the current user
 func (s *Session) AddEquipment(ctx context.Context, request AddEquipmentRequest) error {
 	type addMachineRequest struct {
 		Model       string `json:"model"`
@@ -290,13 +301,13 @@ type CategoryNode struct {
 	Models        []Model
 }
 
+// GetModelTree returns a category tree containing all machines/ attachments currently offered by Kubota
 func (c *Client) GetModelTree(ctx context.Context) ([]*CategoryNode, error) {
 	cs, ms, err := c.loadCategoriesAndModels(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// kubota doesn't have nested categories today. If they had, this code would need adjustments
 	categoryModels := map[int][]Model{}
 	for _, m := range ms {
 		vs, ok := categoryModels[m.CategoryID]
@@ -356,6 +367,7 @@ func (c *Client) loadCategoriesAndModels(ctx context.Context) ([]Category, []Mod
 	return res.Categories, res.Models, nil
 }
 
+// Listcategories returns all product categories offered by Kubota
 func (s *Client) ListCategories(ctx context.Context) ([]Category, error) {
 	cs, _, err := s.loadCategoriesAndModels(ctx)
 	return cs, err
@@ -376,6 +388,7 @@ type Model struct {
 	// warrantyUrl string
 }
 
+// ListModels returns all machines/ attachments offered by Kubota
 func (c *Client) ListModels(ctx context.Context) ([]Model, error) {
 	_, ms, err := c.loadCategoriesAndModels(ctx)
 	return ms, err
@@ -386,6 +399,7 @@ type SearchMachineRequest struct {
 	Serial       string
 }
 
+// SearchMachine performs a location aware search in Kubotas registry for a matching model/ serial combination
 func (c *Client) SearchMachine(ctx context.Context, request SearchMachineRequest) (*Model, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/models", AppEndpoint), nil)
 	if err != nil {
