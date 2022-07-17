@@ -17,6 +17,15 @@ var (
 	AppEndpoint = "https://app.mykubota.com"
 	AppClientID = "1e74fe67-9753-4f65-b6e4-dd65a8132ea2"
 	AppClientSecret = "TCDx0qg5kFQhIdCxW0t1iFlESodtWfaR49vy4JdbYjc"
+	oauthConfig = oauth2.Config{
+		ClientID:     AppClientID,
+		ClientSecret: AppClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "",
+			TokenURL: fmt.Sprintf("%s/oauth/token", AppEndpoint),
+		},
+		Scopes: []string{"read"},
+	}
 )
 
 // Client allows location specific access to public content from the MyKubota app
@@ -58,28 +67,28 @@ func (s *Client) do(req *http.Request, acceptableHTTPCodes []int, res any) error
 // Session allows location specific access to authenticated content
 type Session struct {
 	client *http.Client
-	token  *oauth2.Token
+	Token  *oauth2.Token
 	locale string 
+}
+
+// SessionFromToken restores a session from an existing token
+func (c *Client) SessionFromToken(ctx context.Context, t *oauth2.Token) (*Session, error) {
+	return &Session{
+		client: oauthConfig.Client(ctx, t),
+		Token:  t,
+		locale: c.locale,
+	}, nil
 }
 
 // Authenticate performs a password authentication with the MyKubota oauth API
 func (c *Client) Authenticate(ctx context.Context, username, password string) (*Session, error) {
-	cfg := oauth2.Config{
-		ClientID:     AppClientID,
-		ClientSecret: AppClientSecret,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "",
-			TokenURL: fmt.Sprintf("%s/oauth/token", AppEndpoint),
-		},
-		Scopes: []string{"read"},
-	}
-	token, err := cfg.PasswordCredentialsToken(ctx, username, password)
+	token, err := oauthConfig.PasswordCredentialsToken(ctx, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed oauth2: %v", err)
 	}
 	s := Session{
-		client: cfg.Client(ctx, token),
-		token:  token,
+		client: oauthConfig.Client(ctx, token),
+		Token:  token,
 		locale: c.locale,
 	}
 	return &s, nil
