@@ -6,7 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httputil"
+	"os"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -32,6 +35,7 @@ var (
 type Client struct {
 	client *http.Client
 	locale string 
+	debug bool
 }
 
 // New creates a new MyKubota client for public content in the region specified by the locale
@@ -40,6 +44,7 @@ func New(locale string) (*Client) {
 	return &Client{
 		client: &http.Client{},
 		locale: locale,
+		debug: os.Getenv("DEBUG") != "",
 	}
 }
 
@@ -49,9 +54,17 @@ func (s *Client) do(req *http.Request, acceptableHTTPCodes []int, res any) error
 	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
 	req.Header.Set("Accept-Language", s.locale)
 
+	if s.debug {
+		bs, _ := httputil.DumpRequest(req, true)
+		log.Printf("> %s\n", string(bs))
+	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return err
+	}
+	if s.debug {
+		bs, _ := httputil.DumpResponse(resp, true)
+		log.Printf("< %s\n", string(bs))
 	}
 	defer resp.Body.Close()
 	isSuccessful := false
@@ -69,6 +82,7 @@ type Session struct {
 	client *http.Client
 	Token  *oauth2.Token
 	locale string 
+	debug bool
 }
 
 // SessionFromToken restores a session from an existing token
@@ -77,6 +91,7 @@ func (c *Client) SessionFromToken(ctx context.Context, t *oauth2.Token) (*Sessio
 		client: oauthConfig.Client(ctx, t),
 		Token:  t,
 		locale: c.locale,
+		debug: c.debug,
 	}, nil
 }
 
@@ -200,9 +215,17 @@ func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) erro
 	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
 	req.Header.Set("Accept-Language", s.locale)
 
+	if s.debug {
+		bs, _ := httputil.DumpRequest(req, true)
+		log.Printf("> %s\n", string(bs))
+	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return err
+	}
+	if s.debug {
+		bs, _ := httputil.DumpResponse(resp, true)
+		log.Printf("< %s\n", string(bs))
 	}
 	defer resp.Body.Close()
 	isSuccessful := false
