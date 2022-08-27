@@ -181,6 +181,9 @@ type VideoEntry struct {
 	URL  string `json:"url"`
 }
 
+type ManualEntries []ManualEntry
+type VideoEntries []VideoEntry
+
 type Equipment struct {
 	ID                      string  `json:"id"`
 	Model                   string  `json:"model"`
@@ -204,8 +207,8 @@ type Equipment struct {
 	// "modelIconUrl"
 	// "warrantyUrl"
 	// "guideUrl"
-	ManualEntries []ManualEntry `json:"manualEntries"`
-	VideoEntries  []VideoEntry  `json:"videoEntries"`
+	ManualEntries ManualEntries `json:"manualEntries"`
+	VideoEntries  VideoEntries  `json:"videoEntries"`
 
 	Telematics EquipmentTelematics `json:"telematics"`
 }
