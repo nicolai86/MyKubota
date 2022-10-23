@@ -110,6 +110,20 @@ func TestClient_Categories(t *testing.T) {
 	}
 }
 
+func TestClient_MaintenanceSchedule(t *testing.T) {
+	client := New("en-CA")
+	knownModels := []string{"KX040-4","SVL97-2"}
+	for _, model := range knownModels {
+		schedule, err := client.MaintenanceSchedule(model)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(schedule) == 0 {
+			t.Fatal("Got empty maintenance schedule")
+		}
+	}
+}
+
 func TestClient_Models(t *testing.T) {
 	t.Parallel()
 

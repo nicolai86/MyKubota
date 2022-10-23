@@ -17,10 +17,10 @@ import (
 
 // taken from MyKubota app on iOS
 var (
-	AppEndpoint = "https://app.mykubota.com"
-	AppClientID = "1e74fe67-9753-4f65-b6e4-dd65a8132ea2"
+	AppEndpoint     = "https://app.mykubota.com"
+	AppClientID     = "1e74fe67-9753-4f65-b6e4-dd65a8132ea2"
 	AppClientSecret = "TCDx0qg5kFQhIdCxW0t1iFlESodtWfaR49vy4JdbYjc"
-	oauthConfig = oauth2.Config{
+	oauthConfig     = oauth2.Config{
 		ClientID:     AppClientID,
 		ClientSecret: AppClientSecret,
 		Endpoint: oauth2.Endpoint{
@@ -34,20 +34,43 @@ var (
 // Client allows location specific access to public content from the MyKubota app
 type Client struct {
 	client *http.Client
-	locale string 
-	debug bool
+	locale string
+	debug  bool
 }
 
 // New creates a new MyKubota client for public content in the region specified by the locale
 // locale must be of format `{ISO 639-1}-{ISO 3166}`, ie en-US or en-CA
-func New(locale string) (*Client) {
+func New(locale string) *Client {
 	return &Client{
 		client: &http.Client{},
 		locale: locale,
-		debug: os.Getenv("DEBUG") != "",
+		debug:  os.Getenv("DEBUG") != "",
 	}
 }
 
+// Maintenance contains required maintenance including intervals for a specific model
+type Maintenance struct {
+	ID                  string `json:"id"`
+	CheckPoint          string `json:"checkPoint"`
+	Measures            string `json:"measures"`
+	FirstCheckValue     int    `json:"firstCheckValue"`
+	DisplayIntervalType string `json:"displayIntervalType"`
+	IntervalTyp         string `json:"intervalType"`
+	IntervalValue       int    `json:"intervalValue"`
+	SortOrder           int    `json:"sortOrder"`
+}
+
+func (c *Client) MaintenanceSchedule(model string) ([]Maintenance, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/maintenanceSchedule/%s", AppEndpoint, model), nil)
+	if err != nil {
+		return nil, err
+	}
+	res := []Maintenance{}
+	if err := c.do(req, []int{http.StatusOK}, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
 
 func (s *Client) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
 	req.Header.Set("version", "2022_R03")
@@ -81,8 +104,8 @@ func (s *Client) do(req *http.Request, acceptableHTTPCodes []int, res any) error
 type Session struct {
 	client *http.Client
 	Token  *oauth2.Token
-	locale string 
-	debug bool
+	locale string
+	debug  bool
 }
 
 // SessionFromToken restores a session from an existing token
@@ -91,7 +114,7 @@ func (c *Client) SessionFromToken(ctx context.Context, t *oauth2.Token) (*Sessio
 		client: oauthConfig.Client(ctx, t),
 		Token:  t,
 		locale: c.locale,
-		debug: c.debug,
+		debug:  c.debug,
 	}, nil
 }
 
