@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
 
@@ -485,7 +486,7 @@ type MaintenanceHistory struct {
 	ID                   string    `json:"id"`
 	IntervalType         string    `json:"intervalType"`
 	IntervalValue        int       `json:"intervalValue"`
-	CompletedEngineHours int       `json:"completedEngineHours"`
+	CompletedEngineHours float32   `json:"completedEngineHours"`
 	Notes                string    `json:"notes"`
 	UpdatedDate          time.Time `json:"updatedDate"`
 	// map of MaintenanceSchedule id to performed <Y/N>
@@ -502,4 +503,20 @@ func (s *Session) MaintenanceHistory(equipmentID string) ([]MaintenanceHistory, 
 		return nil, err
 	}
 	return res, nil
+}
+
+func (s *Session) RecordMaintenance(equipmentID string, entry MaintenanceHistory) error {
+	if entry.ID == "" {
+		entry.ID = uuid.NewString()
+	}
+	// TODO maybe sanity check the interval and checks align?
+	payload := bytes.Buffer{}
+	if err := json.NewEncoder(&payload).Encode(entry); err != nil {
+		return err
+	}
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/api/user/equipment/%s/maintenanceHistory", AppEndpoint, equipmentID), &payload)
+	if err != nil {
+		return err
+	}
+	return s.do(req, []int{http.StatusOK}, nil)
 }
