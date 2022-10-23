@@ -149,7 +149,7 @@ func (s *Session) User(ctx context.Context) (*User, error) {
 	}
 
 	res := User{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, jsonDecodeProcessor(&res)); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -237,7 +237,17 @@ type Equipment struct {
 	Telematics EquipmentTelematics `json:"telematics"`
 }
 
-func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
+func jsonDecodeProcessor(v any) func(*http.Response) error {
+	return func(resp *http.Response) error {
+		return json.NewDecoder(resp.Body).Decode(v)
+	}
+}
+
+func noopProcessor(response *http.Response) error {
+	return nil
+}
+
+func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, responseProcessor func(*http.Response) error) error {
 	req.Header.Set("version", "2022_R03")
 	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
 	req.Header.Set("Accept-Language", s.locale)
@@ -262,7 +272,7 @@ func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) erro
 	if !isSuccessful {
 		return fmt.Errorf("response code %d didn't match any expected http status codes %v", resp.StatusCode, acceptableHTTPCodes)
 	}
-	return json.NewDecoder(resp.Body).Decode(res)
+	return responseProcessor(resp)
 }
 
 // ListEquipment retrieves all equipment registered with the MyKubota app
@@ -273,7 +283,7 @@ func (s *Session) ListEquipment(ctx context.Context) ([]Equipment, error) {
 		return nil, err
 	}
 	var res = []Equipment{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, jsonDecodeProcessor(&res)); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -294,7 +304,7 @@ func (s *Session) Settings(ctx context.Context) (*Settings, error) {
 		Settings Settings `json:"settings"`
 	}
 	res := settingsResponse{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, jsonDecodeProcessor(&res)); err != nil {
 		return nil, err
 	}
 	return &res.Settings, nil
@@ -307,7 +317,7 @@ func (s *Session) GetEquipment(ctx context.Context, id string) (*Equipment, erro
 		return nil, err
 	}
 	var res = Equipment{}
-	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, &res); err != nil {
+	if err := s.do(req.WithContext(ctx), []int{http.StatusOK}, jsonDecodeProcessor(&res)); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -319,12 +329,37 @@ func (s *Session) DeleteEquipment(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return s.do(req.WithContext(ctx), []int{http.StatusOK}, struct{}{})
+	return s.do(req.WithContext(ctx), []int{http.StatusOK}, noopProcessor)
 }
 
 type AddEquipmentRequest struct {
 	Model       *Model
 	PinOrSerial string
+}
+
+type UpdateEquipmentRequest struct {
+	EquipmentID string  `json:"id"`
+	EngineHours float64 `json:"engineHours"`
+	NickName    string  `json:"nickName"`
+}
+
+func (s *Session) UpdateEquipment(ctx context.Context, req UpdateEquipmentRequest) (*Equipment, error) {
+	bs := bytes.Buffer{}
+	if err := json.NewEncoder(&bs).Encode(req); err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequest("PUT", fmt.Sprintf("%s/api/user/equipment/update", AppEndpoint), &bs)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	res := []Equipment{}
+	err = s.do(httpReq, []int{http.StatusOK}, jsonDecodeProcessor(&res))
+	if err != nil {
+		return nil, err
+	}
+	return &res[0], nil
 }
 
 // AddEquipment adds equipment associations for the current user
@@ -348,7 +383,7 @@ func (s *Session) AddEquipment(ctx context.Context, request AddEquipmentRequest)
 	if err != nil {
 		return err
 	}
-	return s.do(req.WithContext(ctx), []int{http.StatusOK}, struct{}{})
+	return s.do(req.WithContext(ctx), []int{http.StatusOK}, noopProcessor)
 }
 
 type CategoryNode struct {
@@ -499,7 +534,7 @@ func (s *Session) MaintenanceHistory(equipmentID string) ([]MaintenanceHistory, 
 		return nil, err
 	}
 	res := []MaintenanceHistory{}
-	if err := s.do(req, []int{http.StatusOK}, &res); err != nil {
+	if err := s.do(req, []int{http.StatusOK}, jsonDecodeProcessor(&res)); err != nil {
 		return nil, err
 	}
 	return res, nil
