@@ -50,7 +50,7 @@ func New(locale string) (*Client) {
 
 
 func (s *Client) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
-	req.Header.Set("version", "2021_R06")
+	req.Header.Set("version", "2022_R03")
 	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
 	req.Header.Set("Accept-Language", s.locale)
 
@@ -214,7 +214,7 @@ type Equipment struct {
 }
 
 func (s *Session) do(req *http.Request, acceptableHTTPCodes []int, res any) error {
-	req.Header.Set("version", "2021_R06")
+	req.Header.Set("version", "2022_R03")
 	// locale is used by the backend to filter results for different countries. Ensure it's set to the country you're located in
 	req.Header.Set("Accept-Language", s.locale)
 
