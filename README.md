@@ -10,8 +10,8 @@ This is a go SDK build around the API used by the MyKubota [iOS](https://apps.ap
 - [x] show equipment details
 - [ ] define geofences
 - [ ] update equipment attributes
-- [ ] add equipment
-- [ ] delete equipment
+- [x] add equipment
+- [x] delete equipment
 - [x] listing maintenance schedules
 - [x] listing maintenance history 
 - [x] adding maintenance history
