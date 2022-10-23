@@ -3,6 +3,7 @@ module github.com/nicolai86/mykubota
 go 1.18
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/posener/complete v1.2.3
 	golang.org/x/oauth2 v0.0.0-20220630143837-2104d58473e0
 )
@@ -14,7 +15,6 @@ require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
