@@ -80,6 +80,29 @@ func TestSession_ListEquipment(t *testing.T) {
 	}
 }
 
+func TestSession_MaintenanceHistory(t *testing.T) {
+	skipIntegrationWithoutConfiguration(t)
+
+	eqs, err := shared.ListEquipment(context.Background())
+	if err != nil {
+		t.Fatalf("expected list equipment to succeed, but didn't: %v", err)
+	}
+
+	for _, eq := range eqs {
+		if eq.Model != "SVL97-2" {
+			continue
+		}
+
+		history, err := shared.MaintenanceHistory(eq.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(history) == 0 {
+			t.Fatal("expected maintenance history, got none")
+		}
+	}
+}
+
 func TestSession_Settings(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
@@ -112,7 +135,7 @@ func TestClient_Categories(t *testing.T) {
 
 func TestClient_MaintenanceSchedule(t *testing.T) {
 	client := New("en-CA")
-	knownModels := []string{"KX040-4","SVL97-2"}
+	knownModels := []string{"KX040-4", "SVL97-2"}
 	for _, model := range knownModels {
 		schedule, err := client.MaintenanceSchedule(model)
 		if err != nil {
@@ -147,7 +170,7 @@ func TestClient_SearchMachine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected api settings to succeed, but didn't: %v", err)
 	}
-	
+
 	if expected := "KX057-4"; model.Model != expected {
 		t.Fatalf("expected model %q, got %q", expected, model.Model)
 	}

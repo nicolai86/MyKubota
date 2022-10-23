@@ -480,3 +480,26 @@ func (c *Client) SearchMachine(ctx context.Context, request SearchMachineRequest
 	}
 	return &res.Models[0], nil
 }
+
+type MaintenanceHistory struct {
+	ID                   string    `json:"id"`
+	IntervalType         string    `json:"intervalType"`
+	IntervalValue        int       `json:"intervalValue"`
+	CompletedEngineHours int       `json:"completedEngineHours"`
+	Notes                string    `json:"notes"`
+	UpdatedDate          time.Time `json:"updatedDate"`
+	// map of MaintenanceSchedule id to performed <Y/N>
+	MaintenanceCheckList map[string]bool `json:"maintenanceCheckList"`
+}
+
+func (s *Session) MaintenanceHistory(equipmentID string) ([]MaintenanceHistory, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/user/equipment/%s/maintenanceHistory", AppEndpoint, equipmentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	res := []MaintenanceHistory{}
+	if err := s.do(req, []int{http.StatusOK}, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
