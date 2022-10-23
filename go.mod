@@ -6,6 +6,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/posener/complete v1.2.3
 	golang.org/x/oauth2 v0.0.0-20220630143837-2104d58473e0
+	golang.org/x/sync v0.1.0
 )
 
 require (
