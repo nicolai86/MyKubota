@@ -80,6 +80,29 @@ func TestSession_ListEquipment(t *testing.T) {
 	}
 }
 
+func TestSession_UpdateEquipment(t *testing.T) {
+	skipIntegrationWithoutConfiguration(t)
+
+	eqs, err := shared.ListEquipment(context.Background())
+	if err != nil {
+		t.Fatalf("expected list equipment to succeed, but didn't: %v", err)
+	}
+
+	for _, eq := range eqs {
+		if eq.Model != "KX040-4" {
+			continue
+		}
+
+		if _, err := shared.UpdateEquipment(context.Background(), UpdateEquipmentRequest{
+			EquipmentID: eq.ID,
+			EngineHours: eq.UserEnteredEngineHours,
+			NickName: eq.Nickname,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestSession_MaintenanceHistory(t *testing.T) {
 	skipIntegrationWithoutConfiguration(t)
 
